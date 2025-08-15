@@ -17,6 +17,9 @@ class WebPiano {
         this.recordTimer = null;
         this.mixerNode = null;
         
+        // 主题相关属性
+        this.currentTheme = 'default';
+        
         // 键盘映射 - 一个八度内的映射
         this.keyMapping = {
             // 白键映射 (A-J对应C-B)
@@ -236,6 +239,17 @@ class WebPiano {
                 }
             }
         });
+        
+        // 主题选择器事件
+        const themeSelector = document.getElementById('theme-selector');
+        if (themeSelector) {
+            themeSelector.addEventListener('change', (e) => {
+                this.changeTheme(e.target.value);
+            });
+        }
+        
+        // 初始化主题
+        this.initializeTheme();
     }
     
     getFullNote(noteBase) {
@@ -779,6 +793,49 @@ class WebPiano {
             console.log(`⚠️  文件选择器不可用：${reasons.join('，')}。录制完成后将直接下载到默认目录。`);
         }
     }
+    
+    initializeTheme() {
+        // 从本地存储中恢复主题设置
+        const savedTheme = localStorage.getItem('piano-theme');
+        if (savedTheme) {
+            this.changeTheme(savedTheme);
+            const themeSelector = document.getElementById('theme-selector');
+            if (themeSelector) {
+                themeSelector.value = savedTheme;
+            }
+        }
+    }
+    
+    changeTheme(themeName) {
+        this.currentTheme = themeName;
+        
+        // 更新HTML根元素的data-theme属性
+        if (themeName === 'default') {
+            document.documentElement.removeAttribute('data-theme');
+        } else {
+            document.documentElement.setAttribute('data-theme', themeName);
+        }
+        
+        // 保存到本地存储
+        localStorage.setItem('piano-theme', themeName);
+        
+        // 添加主题切换动画效果
+        document.body.style.transition = 'all 0.5s ease';
+        
+        console.log(`主题已切换为: ${this.getThemeDisplayName(themeName)}`);
+    }
+    
+    getThemeDisplayName(themeName) {
+        const themeNames = {
+            'default': '默认蓝紫',
+            'sunset': '落日橙红',
+            'forest': '森林绿',
+            'ocean': '海洋蓝',
+            'sunset-pink': '粉色梦境',
+            'dark': '暗夜模式'
+        };
+        return themeNames[themeName] || themeName;
+    }
 }
 
 // 页面加载完成后初始化钢琴
@@ -792,6 +849,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('黑键: W E T Y U (对应 C# D# F# G# A#)');
     console.log('八度切换: 数字键 3 4 5 或数字键盘 3 4 5 (切换到第3、4、5八度)');
     console.log('录制功能: R键 或点击录制按钮 (开始/停止录制，默认MP3格式)');
+    console.log('主题切换: 使用主题选择器切换6种不同颜色主题');
     
     // 检查文件选择器支持情况
     if ('showSaveFilePicker' in window && window.isSecureContext) {
@@ -801,4 +859,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     console.log('可以同时按多个键演奏和弦！');
+    console.log('🎨 主题设置会自动保存到本地存储中');
 }); 

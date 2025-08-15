@@ -94,6 +94,68 @@ header h1 {
     background: #4caf50;
 }
 
+/* 录制按钮样式 */
+.recording-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.record-button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    background: #e74c3c;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.record-button:hover {
+    background: #c0392b;
+    transform: translateY(-2px);
+}
+
+.record-button.recording {
+    background: #27ae60;
+    animation: pulse 1.5s infinite;
+}
+
+.record-button.recording:hover {
+    background: #229954;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.record-status {
+    font-weight: 600;
+    color: #666;
+}
+
+.record-status.recording {
+    color: #e74c3c;
+    font-style: italic;
+}
+
+.record-time {
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    color: #333;
+    background: rgba(0,0,0,0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+    min-width: 60px;
+    text-align: center;
+}
+
 .piano-container {
     background: rgba(255, 255, 255, 0.95);
     padding: 30px;

@@ -9,6 +9,14 @@ class WebPiano {
         this.pressedKeys = new Set(); // 存储当前按下的键
         this.audioCache = new Map(); // 音频缓存
         
+        // 录制相关属性
+        this.isRecording = false;
+        this.mediaRecorder = null;
+        this.recordedChunks = [];
+        this.recordStartTime = null;
+        this.recordTimer = null;
+        this.mixerNode = null;
+        
         // 键盘映射 - 一个八度内的映射
         this.keyMapping = {
             // 白键映射 (A-J对应C-B)
@@ -36,8 +44,12 @@ class WebPiano {
             // 初始化Web Audio API
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             this.gainNode = this.audioContext.createGain();
-            this.gainNode.connect(this.audioContext.destination);
             this.gainNode.gain.value = this.volume;
+            
+            // 创建混音节点用于录制
+            this.mixerNode = this.audioContext.createGain();
+            this.gainNode.connect(this.mixerNode);
+            this.mixerNode.connect(this.audioContext.destination);
             
             // 创建钢琴键盘
             await this.createPianoKeys();
@@ -193,7 +205,36 @@ class WebPiano {
         // 卸载释放
         window.addEventListener('beforeunload', () => {
             this.stopAllNotes();
+            if (this.isRecording) {
+                this.stopRecording();
+            }
             this.audioContext && this.audioContext.close();
+        });
+        
+        // 录制按钮事件
+        const recordBtn = document.getElementById('record-btn');
+        if (recordBtn) {
+            recordBtn.addEventListener('click', () => {
+                if (this.isRecording) {
+                    this.stopRecording();
+                } else {
+                    this.startRecording();
+                }
+            });
+        }
+        
+        // R键快捷键录制
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyR' && !e.repeat) {
+                // 检查是否不在演奏键上，避免冲突
+                if (!this.keyMapping[e.code]) {
+                    e.preventDefault();
+                    const recordBtn = document.getElementById('record-btn');
+                    if (recordBtn) {
+                        recordBtn.click();
+                    }
+                }
+            }
         });
     }
     
@@ -454,6 +495,290 @@ class WebPiano {
                 .join('');
         }
     }
+    
+    async startRecording() {
+        try {
+            // 创建MediaStreamDestination用于录制
+            const dest = this.audioContext.createMediaStreamDestination();
+            this.mixerNode.connect(dest);
+            
+            // 创建MediaRecorder
+            this.mediaRecorder = new MediaRecorder(dest.stream, {
+                mimeType: 'audio/webm;codecs=opus'
+            });
+            
+            this.recordedChunks = [];
+            
+            this.mediaRecorder.addEventListener('dataavailable', (event) => {
+                if (event.data.size > 0) {
+                    this.recordedChunks.push(event.data);
+                }
+            });
+            
+            this.mediaRecorder.addEventListener('stop', () => {
+                this.processRecording();
+            });
+            
+            // 开始录制
+            this.mediaRecorder.start();
+            this.isRecording = true;
+            this.recordStartTime = Date.now();
+            
+            // 更新UI
+            this.updateRecordingUI();
+            
+            // 开始计时器
+            this.startRecordTimer();
+            
+            console.log('开始录制');
+            
+            // 检查浏览器兼容性并提示用户
+            this.checkFilePickerSupport();
+            
+        } catch (error) {
+            console.error('开始录制失败:', error);
+            alert('录制功能初始化失败，请检查浏览器是否支持录制功能');
+        }
+    }
+    
+    stopRecording() {
+        if (this.mediaRecorder && this.isRecording) {
+            this.mediaRecorder.stop();
+            this.isRecording = false;
+            
+            // 停止计时器
+            this.stopRecordTimer();
+            
+            // 更新UI
+            this.updateRecordingUI();
+            
+            console.log('停止录制');
+        }
+    }
+    
+    updateRecordingUI() {
+        const recordBtn = document.getElementById('record-btn');
+        const recordStatus = document.getElementById('record-status');
+        
+        if (this.isRecording) {
+            recordBtn.textContent = '⏹️ 停止录制';
+            recordBtn.classList.add('recording');
+            recordStatus.textContent = '录制中 (MP3)';
+            recordStatus.classList.add('recording');
+        } else {
+            recordBtn.textContent = '🔴 开始录制';
+            recordBtn.classList.remove('recording');
+            recordStatus.textContent = '未录制';
+            recordStatus.classList.remove('recording');
+        }
+    }
+    
+    startRecordTimer() {
+        this.recordTimer = setInterval(() => {
+            if (this.isRecording && this.recordStartTime) {
+                const elapsed = Math.floor((Date.now() - this.recordStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                const timeDisplay = document.getElementById('record-time');
+                if (timeDisplay) {
+                    timeDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }
+            }
+        }, 1000);
+    }
+    
+    stopRecordTimer() {
+        if (this.recordTimer) {
+            clearInterval(this.recordTimer);
+            this.recordTimer = null;
+        }
+        
+        // 重置时间显示
+        const timeDisplay = document.getElementById('record-time');
+        if (timeDisplay) {
+            timeDisplay.textContent = '00:00';
+        }
+    }
+    
+    async processRecording() {
+        if (this.recordedChunks.length === 0) {
+            alert('录制内容为空');
+            return;
+        }
+        
+        // 创建Blob
+        const blob = new Blob(this.recordedChunks, {
+            type: 'audio/webm;codecs=opus'
+        });
+        
+        // 获取当前时间作为默认文件名
+        const now = new Date();
+        const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const defaultFilename = `piano-recording-${timestamp}`;
+        
+        // 默认尝试保存为MP3格式
+        if (typeof lamejs !== 'undefined') {
+            try {
+                await this.saveWithDialog(blob, defaultFilename, 'mp3');
+            } catch (error) {
+                console.error('MP3转换失败:', error);
+                alert('MP3转换失败，将保存为WebM格式');
+                await this.saveWithDialog(blob, defaultFilename, 'webm');
+            }
+        } else {
+            // 如果没有MP3编码器，保存为WebM
+            await this.saveWithDialog(blob, defaultFilename, 'webm');
+        }
+        
+        // 清理录制数据
+        this.recordedChunks = [];
+    }
+    
+    async saveWithDialog(blob, defaultFilename, format) {
+        const recordStatus = document.getElementById('record-status');
+        
+        try {
+            let finalBlob = blob;
+            
+            // 如果是MP3格式，需要先转换
+            if (format === 'mp3') {
+                recordStatus.textContent = '正在转换MP3...';
+                finalBlob = await this.convertBlobToMP3(blob);
+            }
+            
+            const filename = `${defaultFilename}.${format}`;
+            const mimeType = format === 'mp3' ? 'audio/mp3' : 'audio/webm';
+            
+            // 检查是否支持File System Access API
+            if ('showSaveFilePicker' in window && window.isSecureContext) {
+                try {
+                    console.log('尝试打开文件保存对话框...');
+                    const fileHandle = await window.showSaveFilePicker({
+                        suggestedName: filename,
+                        types: [{
+                            description: `${format.toUpperCase()} 音频文件`,
+                            accept: {
+                                [mimeType]: [`.${format}`]
+                            }
+                        }],
+                        excludeAcceptAllOption: false
+                    });
+                    
+                    console.log('用户已选择保存位置，开始写入文件...');
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(finalBlob);
+                    await writable.close();
+                    
+                    console.log(`录制完成，文件已保存为: ${fileHandle.name}`);
+                    alert(`录制完成！文件已保存到: ${fileHandle.name}`);
+                    return;
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        console.log('用户取消了文件保存');
+                        alert('保存已取消');
+                        return;
+                    } else {
+                        console.error('使用文件选择器保存失败:', error);
+                        console.log('降级到传统下载方式');
+                    }
+                }
+            } else {
+                console.log('浏览器不支持文件选择器或不在安全上下文中，使用传统下载方式');
+                if (!('showSaveFilePicker' in window)) {
+                    console.log('原因：浏览器不支持 File System Access API');
+                }
+                if (!window.isSecureContext) {
+                    console.log('原因：不在安全上下文中（需要HTTPS或localhost）');
+                }
+            }
+            
+            // 降级到传统下载方式
+            this.fallbackDownload(finalBlob, filename);
+            
+        } catch (error) {
+            console.error('保存文件失败:', error);
+            alert('保存文件失败: ' + error.message);
+        } finally {
+            recordStatus.textContent = '未录制';
+        }
+    }
+    
+    fallbackDownload(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.style.display = 'none';
+        
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        
+        console.log(`录制完成，文件已下载为: ${filename}`);
+        alert(`录制完成！文件已下载到默认下载目录: ${filename}\n\n提示：要选择保存位置，请使用支持文件选择器的浏览器（Chrome 86+）并确保在HTTPS环境下运行。`);
+    }
+    
+    async convertBlobToMP3(blob) {
+        // 将WebM转换为AudioBuffer
+        const arrayBuffer = await blob.arrayBuffer();
+        const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+        
+        // 获取音频数据
+        const channels = audioBuffer.numberOfChannels;
+        const sampleRate = audioBuffer.sampleRate;
+        const length = audioBuffer.length;
+        
+        // 转换为16位PCM
+        const leftChannel = audioBuffer.getChannelData(0);
+        const rightChannel = channels > 1 ? audioBuffer.getChannelData(1) : leftChannel;
+        
+        const leftPCM = new Int16Array(length);
+        const rightPCM = new Int16Array(length);
+        
+        for (let i = 0; i < length; i++) {
+            leftPCM[i] = Math.max(-32768, Math.min(32767, leftChannel[i] * 32768));
+            rightPCM[i] = Math.max(-32768, Math.min(32767, rightChannel[i] * 32768));
+        }
+        
+        // 使用lamejs编码为MP3
+        const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, 128);
+        const mp3Data = [];
+        
+        const blockSize = 1152;
+        for (let i = 0; i < length; i += blockSize) {
+            const left = leftPCM.subarray(i, i + blockSize);
+            const right = rightPCM.subarray(i, i + blockSize);
+            const mp3buf = mp3encoder.encodeBuffer(left, right);
+            if (mp3buf.length > 0) {
+                mp3Data.push(mp3buf);
+            }
+        }
+        
+        const final = mp3encoder.flush();
+        if (final.length > 0) {
+            mp3Data.push(final);
+        }
+        
+        // 创建并返回MP3 Blob
+        return new Blob(mp3Data, { type: 'audio/mp3' });
+    }
+    
+    checkFilePickerSupport() {
+        if ('showSaveFilePicker' in window && window.isSecureContext) {
+            console.log('✅ 支持文件选择器：录制完成后可以选择保存位置和文件名');
+        } else {
+            const reasons = [];
+            if (!('showSaveFilePicker' in window)) {
+                reasons.push('浏览器不支持File System Access API');
+            }
+            if (!window.isSecureContext) {
+                reasons.push('不在安全上下文中（需要HTTPS或localhost）');
+            }
+            console.log(`⚠️  文件选择器不可用：${reasons.join('，')}。录制完成后将直接下载到默认目录。`);
+        }
+    }
 }
 
 // 页面加载完成后初始化钢琴
@@ -466,5 +791,14 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('白键: A S D F G H J (对应 C D E F G A B)');
     console.log('黑键: W E T Y U (对应 C# D# F# G# A#)');
     console.log('八度切换: 数字键 3 4 5 或数字键盘 3 4 5 (切换到第3、4、5八度)');
+    console.log('录制功能: R键 或点击录制按钮 (开始/停止录制，默认MP3格式)');
+    
+    // 检查文件选择器支持情况
+    if ('showSaveFilePicker' in window && window.isSecureContext) {
+        console.log('📁 文件保存：支持选择保存位置和文件名');
+    } else {
+        console.log('📁 文件保存：将保存到默认下载目录（需要Chrome 86+和HTTPS环境才能选择位置）');
+    }
+    
     console.log('可以同时按多个键演奏和弦！');
 }); 

@@ -32,6 +32,12 @@
             <div class="control-group">
                 <button id="sustain-btn" class="sustain-button">延音踏板 OFF</button>
             </div>
+            
+            <div class="control-group recording-controls">
+                <button id="record-btn" class="record-button">🔴 开始录制</button>
+                <span id="record-status" class="record-status">未录制</span>
+                <span id="record-time" class="record-time">00:00</span>
+            </div>
         </div>
 
         <div class="piano-container">
@@ -49,6 +55,10 @@
                 <div class="black-keys-mapping">
                     <p><strong>黑键:</strong> W E T Y U (对应 C# D# F# G# A#)</p>
                 </div>
+                <div class="shortcuts-mapping">
+                    <p><strong>快捷键:</strong> 数字键 3/4/5 (切换八度) | R键 (开始/停止录制)</p>
+                    <p><strong>录制:</strong> 自动保存为MP3格式，支持选择保存位置和文件名</p>
+                </div>
             </div>
         </div>
 
@@ -64,6 +74,8 @@
         </div>
     </div>
 
+    <!-- lamejs库用于MP3编码 -->
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
     <script src="{{ url_for('static', filename='js/piano.js') }}"></script>
 </body>
 </html> 

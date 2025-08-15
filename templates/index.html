@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网页钢琴 - Web Piano</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎹 网页钢琴演奏器</h1>
+            <p class="subtitle">使用键盘或鼠标演奏美妙的音乐</p>
+        </header>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="octave">八度:</label>
+                <select id="octave">
+                    <option value="3">第3八度</option>
+                    <option value="4" selected>第4八度</option>
+                    <option value="5">第5八度</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="volume">音量:</label>
+                <input type="range" id="volume" min="0" max="100" value="50">
+                <span id="volume-display">50%</span>
+            </div>
+            
+            <div class="control-group">
+                <button id="sustain-btn" class="sustain-button">延音踏板 OFF</button>
+            </div>
+        </div>
+
+        <div class="piano-container">
+            <div class="piano" id="piano">
+                <!-- 钢琴键将通过JavaScript动态生成 -->
+            </div>
+        </div>
+
+        <div class="keyboard-help">
+            <h3>键盘映射</h3>
+            <div class="keyboard-mapping">
+                <div class="white-keys-mapping">
+                    <p><strong>白键:</strong> A S D F G H J (对应 C D E F G A B)</p>
+                </div>
+                <div class="black-keys-mapping">
+                    <p><strong>黑键:</strong> W E T Y U (对应 C# D# F# G# A#)</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-panel">
+            <div class="current-notes">
+                <h4>当前演奏的音符:</h4>
+                <div id="current-notes-display"></div>
+            </div>
+            
+            <div class="stats">
+                <p>支持多音符同时演奏 | 连续按键不中断 | ADSR音色合成</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/piano.js') }}"></script>
+</body>
+</html> 

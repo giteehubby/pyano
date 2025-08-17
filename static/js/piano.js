@@ -30,6 +30,7 @@ class WebPiano {
             'KeyG': 'G',
             'KeyH': 'A',
             'KeyJ': 'B',
+            'Space': 'B', // Space键也映射到B音
             
             // 黑键映射 (W E T Y U对应半音)
             'KeyW': 'C#',
